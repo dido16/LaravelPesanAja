@@ -19,6 +19,7 @@ class OrderController extends Controller
         $request->validate([
             'meja'          => 'required', 
             'customer_name' => 'required|string',
+            'device_id'     => 'required|string', // <--- TAMBAHAN: Validasi Device ID
             'items'         => 'required|array',
             'items.*.menu_id'  => 'required|exists:menus,id',
             'items.*.quantity' => 'required|integer|min:1',
@@ -44,6 +45,7 @@ class OrderController extends Controller
             // 1. Buat Order Header
             $order = Order::create([
                 'table_id'      => $table->id,
+                'device_id'     => $request->device_id, // <--- TAMBAHAN: Simpan Device ID ke Database
                 'customer_name' => $request->customer_name,
                 'subtotal'      => 0,
                 'tax_amount'    => 0,
@@ -99,10 +101,8 @@ class OrderController extends Controller
     }
 
     // --- FUNGSI 2: BAYAR PESANAN (markAsPaid) ---
-    // Pastikan fungsi ini ada di DALAM class OrderController, tapi di LUAR function store()
     public function markAsPaid($id)
     {
-        // Pasang debugging biar ketahuan kalau ada error
         try {
             $order = Order::find($id);
 
@@ -110,14 +110,12 @@ class OrderController extends Controller
                 return response()->json(['success' => false, 'message' => 'Order tidak ditemukan'], 404);
             }
 
-            // --- PERBAIKAN: Ganti 'paid' jadi 'completed' ---
-            // (Karena kemungkinan database lo gak kenal status 'paid')
+            // Ganti status jadi completed
             if ($order->status != 'completed') {
                 $order->update(['status' => 'completed']);
             }
 
-            // --- INI YANG PALING PENTING: KOSONGKAN MEJA ---
-            // Ubah status meja dari 'occupied' jadi 'available'
+            // Kosongkan Meja
             $table = Table::find($order->table_id);
             if ($table) {
                 $table->update(['status' => 'available']);
@@ -130,7 +128,6 @@ class OrderController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            // Kalau masih error, server bakal ngasih tau alasannya
             return response()->json([
                 'success' => false, 
                 'message' => 'Gagal Update: ' . $e->getMessage()
@@ -138,4 +135,31 @@ class OrderController extends Controller
         }
     }
 
-} 
+    // --- FUNGSI 3: RIWAYAT PESANAN (BARU) ---
+    public function history(Request $request)
+    {
+        // Ambil device_id dari parameter URL (misal: ?device_id=xxxx)
+        $deviceId = $request->query('device_id');
+
+        if (!$deviceId) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Device ID wajib dikirim'
+            ], 400);
+        }
+
+        // Cari order berdasarkan device_id, urutkan dari yang terbaru
+        // Kita load juga relasi orderItems dan menu biar datanya lengkap
+        $orders = Order::where('device_id', $deviceId)
+                        ->with('orderItems.menu', 'orderItems.level') 
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data riwayat berhasil diambil',
+            'data'    => $orders
+        ]);
+    }
+
+}

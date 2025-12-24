@@ -11,3 +11,5 @@ Route::post('/order', [OrderController::class, 'store']);
 
 // --- TAMBAHKAN INI (Biar Android gak kena 404 pas mau bayar) ---
 Route::post('/order/{id}/pay', [OrderController::class, 'markAsPaid']);
+
+Route::get('/history', [App\Http\Controllers\Api\OrderController::class, 'history']);
