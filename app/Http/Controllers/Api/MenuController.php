@@ -12,6 +12,7 @@ class MenuController extends Controller
     {
         // Mengambil semua menu
         $menus = Menu::all();
+        $menus = Menu::with('levels')->get();
 
         // Mengembalikan data dalam bentuk JSON agar bisa dibaca Retrofit
         return response()->json($menus);

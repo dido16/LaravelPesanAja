@@ -12,7 +12,7 @@
             @if (session('error'))
                 <div class="alert alert-danger">{{ session('error') }}</div>
             @endif
-            
+
             <div class="row">
                 <div class="col-md-12">
                     <div class="form-group row">
@@ -29,7 +29,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <table class="table table-bordered table-striped table-hover table-sm" id="table_order">
                 <thead>
                     <tr>
@@ -58,7 +58,7 @@
                 serverSide: true,
                 ajax: {
                     // URL ini merujuk ke route: /admin/orders/list
-                    "url": "{{ url('admin/orders/list') }}", 
+                    "url": "{{ url('admin/orders/list') }}",
                     "dataType": "json",
                     "type": "GET",
                     "data": function(d) {
@@ -97,7 +97,8 @@
                         else if (data === 'processing') badgeClass = 'bg-primary';
                         else if (data === 'completed') badgeClass = 'bg-success';
                         else if (data === 'cancelled') badgeClass = 'bg-danger';
-                        return '<span class="badge ' + badgeClass + '">' + data.toUpperCase() + '</span>';
+                        return '<span class="badge ' + badgeClass + '">' + data.toUpperCase() +
+                            '</span>';
                     }
                 }, {
                     data: "created_at",
@@ -117,25 +118,32 @@
                 dataOrder.ajax.reload();
             });
 
-            // Logika Update Status (Tombol Selesai)
+            // Logika Update Status (Tombol di dalam tabel)
             $('#table_order').on('click', '.update-status', function() {
                 var orderId = $(this).data('id');
-                var newStatus = $(this).data('status'); // Biasanya 'completed'
+                var newStatus = $(this).data(
+                    'status'); // Mengambil 'processing', 'completed', atau 'cancelled'
 
-                if (confirm('Yakin ingin mengubah status pesanan #' + orderId + ' menjadi ' + newStatus.toUpperCase() + '?')) {
+                var pesanConfirm = 'Yakin ingin mengubah status pesanan #' + orderId + ' menjadi ' +
+                    newStatus.toUpperCase() + '?';
+                if (newStatus === 'completed' || newStatus === 'cancelled') {
+                    pesanConfirm += ' (Meja akan otomatis dikosongkan)';
+                }
+
+                if (confirm(pesanConfirm)) {
                     $.ajax({
                         url: "{{ url('admin/orders') }}/" + orderId + "/status",
                         type: 'PUT',
                         data: {
                             status: newStatus,
-                            _token: $('meta[name="csrf-token"]').attr('content')
+                            _token: '{{ csrf_token() }}' // Pastikan token CSRF terkirim
                         },
                         success: function(response) {
+                            dataOrder.ajax.reload(); // Refresh tabel tanpa reload halaman
                             alert(response.message);
-                            dataOrder.ajax.reload();
                         },
                         error: function(xhr) {
-                            alert('Gagal mengubah status: ' + xhr.responseJSON.message);
+                            alert('Gagal: ' + xhr.responseJSON.message);
                         }
                     });
                 }

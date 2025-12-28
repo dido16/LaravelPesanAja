@@ -21,4 +21,9 @@ class Menu extends Model
     {
         return $this->hasMany(OrderItem::class);
     }
+
+    public function levels()
+    {
+        return $this->belongsToMany(Level::class, 'menu_level');
+    }
 }

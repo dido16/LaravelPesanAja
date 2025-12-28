@@ -85,3 +85,5 @@ Route::group(['prefix' => 'admin/tables'], function () {
 
 // URL: /api/order/checkout
 Route::post('/api/order/checkout', [OrderController::class, 'store']);
+
+Route::put('/api/orders/{id}/status', [OrderController::class, 'updateStatus']);

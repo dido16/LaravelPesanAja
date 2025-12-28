@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Menu; // Import Model Menu
-use App\Models\Category; // Import Model Category untuk dropdown filter/form
+use App\Models\Level;
 use Illuminate\Http\Request;
-use Yajra\DataTables\Facades\DataTables; // Untuk DataTables
 use Illuminate\Support\Facades\Storage;
+use App\Models\Menu; // Import Model Menu
+use Yajra\DataTables\Facades\DataTables; // Untuk DataTables
+use App\Models\Category; // Import Model Category untuk dropdown filter/form
 
 class MenuController extends Controller
 {
@@ -89,11 +90,13 @@ class MenuController extends Controller
         // Ambil semua kategori untuk dropdown di form
         $categories = Category::all();
 
+        $levels = Level::all(); // Ambil semua data level
+
         // 👇 SOLUSI: Tambahkan $activeMenu
         $activeMenu = 'menu';
 
         // Mengirimkan data categories ke view: admin/menu/create.blade.php
-        return view('admin.menu.create', compact('breadcrumb', 'page', 'categories', 'activeMenu'));
+        return view('admin.menu.create', compact('breadcrumb', 'page', 'categories', 'levels', 'activeMenu'));
     }
 
     /**
@@ -107,6 +110,7 @@ class MenuController extends Controller
             'description' => 'nullable|string|max:255',
             'price' => 'required|integer|min:0',
             'has_level' => 'required|boolean',
+            'level_ids' => 'array', // Validasi input level_ids berupa array
             'image' => 'nullable|image|mimes:jpeg,png,jpg|max:5120', // <--- Validasi untuk foto
         ]);
 
@@ -126,7 +130,12 @@ class MenuController extends Controller
             $data['image'] = null;
         }
 
-        Menu::create($data);
+        $menu = Menu::create($data); // Simpan menu dulu
+
+        // Tambahkan baris ini untuk menyimpan ke tabel pivot:
+        if ($request->has_level == '1' && $request->has('level_ids')) {
+            $menu->levels()->sync($request->level_ids);
+        }
 
         return redirect('/admin/menus')->with('success', 'Data Menu berhasil disimpan.');
     }
@@ -136,8 +145,8 @@ class MenuController extends Controller
      */
     public function show(string $id)
     {
-        // Eager load relasi category
-        $menu = Menu::with('category')->find($id);
+        // Tambahkan 'levels' di dalam with()
+        $menu = Menu::with(['category', 'levels'])->find($id);
 
         if (!$menu) {
             return redirect('/admin/menus')->with('error', 'Data Menu tidak ditemukan.');
@@ -152,18 +161,17 @@ class MenuController extends Controller
             'title' => 'Detail Menu'
         ];
 
-        // 👇 SOLUSI: Tambahkan $activeMenu
         $activeMenu = 'menu';
 
         return view('admin.menu.show', compact('breadcrumb', 'page', 'menu', 'activeMenu'));
     }
-
     /**
      * Menampilkan halaman edit Menu.
      */
     public function edit(string $id)
     {
-        $menu = Menu::find($id);
+        // Ambil data menu beserta relasi levels-nya
+        $menu = Menu::with('levels')->find($id);
 
         if (!$menu) {
             return redirect('/admin/menus')->with('error', 'Data Menu tidak ditemukan.');
@@ -178,13 +186,15 @@ class MenuController extends Controller
             'title' => 'Edit Menu'
         ];
 
-        // Ambil semua kategori untuk dropdown di form
         $categories = Category::all();
 
-        // 👇 SOLUSI: Tambahkan $activeMenu
+        // 👇 PERBAIKAN: Ambil data levels dari database
+        $levels = Level::all();
+
         $activeMenu = 'menu';
 
-        return view('admin.menu.edit', compact('breadcrumb', 'page', 'menu', 'categories', 'activeMenu'));
+        // 👇 PERBAIKAN: Pastikan 'levels' dimasukkan ke dalam compact
+        return view('admin.menu.edit', compact('breadcrumb', 'page', 'menu', 'categories', 'levels', 'activeMenu'));
     }
 
     /**
@@ -229,6 +239,13 @@ class MenuController extends Controller
 
         $menu->update($data);
 
+        // TAMBAHKAN INI:
+        if ($request->has_level == '1') {
+            $menu->levels()->sync($request->level_ids ?? []);
+        } else {
+            $menu->levels()->detach(); // Hapus semua relasi jika has_level diubah ke "Tidak"
+        }
+
         return redirect('/admin/menus')->with('success', 'Data Menu berhasil diubah.');
     }
 
@@ -237,17 +254,26 @@ class MenuController extends Controller
      */
     public function destroy(string $id)
     {
-        $check = Menu::find($id);
+        $menu = Menu::find($id);
 
-        if (!$check) {
+        if (!$menu) {
             return redirect('/admin/menus')->with('error', 'Data Menu tidak ditemukan.');
         }
 
         try {
-            Menu::destroy($id); // Menghapus data
+            // 1. Putuskan relasi dengan level di tabel pivot (menu_level)
+            $menu->levels()->detach();
+
+            // 2. Hapus gambar dari storage jika ada
+            if ($menu->image) {
+                Storage::disk('public')->delete($menu->image);
+            }
+
+            // 3. Hapus data menu
+            $menu->delete();
+
             return redirect('/admin/menus')->with('success', 'Data Menu berhasil dihapus.');
         } catch (\Illuminate\Database\QueryException $e) {
-            // Karena Menu berelasi dengan OrderItem, jika data Menu masih digunakan, hapus akan gagal
             return redirect('/admin/menus')->with('error', 'Data Menu gagal dihapus karena masih digunakan dalam transaksi.');
         }
     }

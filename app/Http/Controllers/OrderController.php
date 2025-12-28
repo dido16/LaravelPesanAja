@@ -28,7 +28,7 @@ class OrderController extends Controller
 
         // Status filter: pending, processing, completed, cancelled
         $statuses = ['pending', 'processing', 'completed', 'cancelled'];
-        
+
         // 👇 SOLUSI: Tambahkan $activeMenu
         $activeMenu = 'order';
 
@@ -39,8 +39,8 @@ class OrderController extends Controller
     {
         // Eager load relasi table
         $orders = Order::select('id', 'table_id', 'customer_name', 'final_total', 'status', 'created_at')
-                        ->with('table')
-                        ->orderBy('created_at', 'desc');
+            ->with('table')
+            ->orderBy('created_at', 'desc');
 
         // Filter berdasarkan status
         if ($request->status) {
@@ -48,7 +48,7 @@ class OrderController extends Controller
         }
 
         return DataTables::of($orders)
-            ->addIndexColumn() 
+            ->addIndexColumn()
             ->addColumn('table_number', function ($order) {
                 return $order->table->table_number ?? 'N/A';
             })
@@ -56,12 +56,18 @@ class OrderController extends Controller
                 return 'Rp ' . number_format($order->final_total, 0, ',', '.');
             })
             ->addColumn('aksi', function ($order) {
-                // Tombol detail, dan tombol update status
-                $btn = '<a href="'.url('/admin/orders/' . $order->id).'" class="btn btn-info btn-sm">Detail</a> ';
-                // Contoh: Tombol Selesaikan Pesanan (hanya jika status processing)
-                if ($order->status == 'processing') {
-                    $btn .= '<button class="btn btn-success btn-sm ml-1 update-status" data-id="'.$order->id.'" data-status="completed">Selesai</button>';
+                $btn = '<a href="' . url('/admin/orders/' . $order->id) . '" class="btn btn-info btn-sm">Detail</a> ';
+
+                // Jika masih Pending, Admin bisa Terima (ke Processing) atau Cancel
+                if ($order->status == 'pending') {
+                    $btn .= '<button class="btn btn-primary btn-sm ml-1 update-status" data-id="' . $order->id . '" data-status="processing">Terima</button>';
+                    $btn .= '<button class="btn btn-danger btn-sm ml-1 update-status" data-id="' . $order->id . '" data-status="cancelled">Cancel</button>';
                 }
+                // Jika sedang diproses, Admin bisa Selesaikan
+                else if ($order->status == 'processing') {
+                    $btn .= '<button class="btn btn-success btn-sm ml-1 update-status" data-id="' . $order->id . '" data-status="completed">Selesai</button>';
+                }
+
                 return $btn;
             })
             ->rawColumns(['aksi'])
@@ -74,18 +80,18 @@ class OrderController extends Controller
         $order = Order::with('table', 'orderItems.menu', 'orderItems.level')->find($id);
 
         if (!$order) {
-             return redirect('/admin/orders')->with('error', 'Pesanan tidak ditemukan.');
+            return redirect('/admin/orders')->with('error', 'Pesanan tidak ditemukan.');
         }
 
         $breadcrumb = (object) [
             'title' => 'Detail Pesanan',
             'list' => ['Home', 'Pesanan', 'Detail']
         ];
-        
+
         $page = (object) [
             'title' => 'Detail Pesanan #' . $order->id
         ];
-        
+
         // 👇 SOLUSI: Tambahkan $activeMenu
         $activeMenu = 'order';
 
@@ -96,40 +102,34 @@ class OrderController extends Controller
     // Fungsi untuk memperbarui status pesanan (dipanggil dari AJAX admin)
     public function updateStatus(Request $request, string $id)
     {
+        // Gunakan find() dan pastikan order ditemukan
         $order = Order::find($id);
+
         if (!$order) {
             return response()->json(['success' => false, 'message' => 'Pesanan tidak ditemukan.'], 404);
         }
 
         $newStatus = $request->status;
 
-        // Validasi status yang diizinkan
-        if (!in_array($newStatus, ['pending', 'processing', 'completed', 'cancelled'])) {
-            return response()->json(['success' => false, 'message' => 'Status tidak valid.'], 400);
-        }
-        
-        // Mulai transaksi database
         DB::beginTransaction();
         try {
             $order->status = $newStatus;
             $order->save();
 
-            // Jika pesanan selesai, kembalikan status meja menjadi available
+            // 🎯 PERBAIKAN DI SINI:
+            // Gunakan $order->table (tanpa tanda kurung) untuk mengakses object relasi
             if ($newStatus == 'completed' || $newStatus == 'cancelled') {
-                $order->table->status = 'available';
-                $order->table->save();
-            } else if ($newStatus == 'pending' && $order->table) {
-                // Pastikan meja menjadi occupied saat order masuk atau diproses
-                $order->table->status = 'occupied';
-                $order->table->save();
+                if ($order->table) {
+                    // Mengupdate status kolom di tabel 'tables'
+                    $order->table->update(['status' => 'available']);
+                }
             }
 
             DB::commit();
-            return response()->json(['success' => true, 'message' => 'Status pesanan berhasil diperbarui.'], 200);
-
+            return response()->json(['success' => true, 'message' => 'Status berhasil diubah']);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['success' => false, 'message' => 'Gagal memperbarui status: '.$e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
@@ -170,7 +170,7 @@ class OrderController extends Controller
                 $basePrice = $menu->price;
                 $levelCost = $level ? $level->extra_cost : 0;
                 $unitPrice = $basePrice + $levelCost; // Harga Satuan per Item (Menu + Biaya Level)
-                
+
                 $subtotal += ($unitPrice * $item['quantity']);
             }
 
@@ -190,7 +190,7 @@ class OrderController extends Controller
 
             // 4. Buat Order Item (Detail)
             foreach ($itemsData as $item) {
-                $menu = Menu::find($item['menu_id']); 
+                $menu = Menu::find($item['menu_id']);
                 $level = $item['level_id'] ? Level::find($item['level_id']) : null;
                 $levelCost = $level ? $level->extra_cost : 0;
                 $unitPrice = $menu->price + $levelCost;
@@ -216,7 +216,6 @@ class OrderController extends Controller
                 'order_id' => $order->id,
                 'final_total' => $finalTotal
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Gagal membuat pesanan: ' . $e->getMessage()], 500);

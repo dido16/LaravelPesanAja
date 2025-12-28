@@ -10,6 +10,7 @@ use App\Models\Table;
 use App\Models\Level;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
@@ -17,7 +18,7 @@ class OrderController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'meja'          => 'required', 
+            'meja'          => 'required',
             'customer_name' => 'required|string',
             'device_id'     => 'required|string', // <--- TAMBAHAN: Validasi Device ID
             'items'         => 'required|array',
@@ -31,7 +32,7 @@ class OrderController extends Controller
         $table = Table::where('table_number', $nomorMeja)->first();
 
         if (!$table) {
-            return response()->json(['success' => false, 'message' => 'Meja '.$nomorMeja.' tidak ditemukan'], 404);
+            return response()->json(['success' => false, 'message' => 'Meja ' . $nomorMeja . ' tidak ditemukan'], 404);
         }
 
         if ($table->status != 'available') {
@@ -89,11 +90,10 @@ class OrderController extends Controller
             DB::commit();
 
             return response()->json([
-                'success' => true, 
+                'success' => true,
                 'message' => 'Pesanan berhasil dikirim ke dapur!',
                 'data'    => $order->load('orderItems.menu', 'orderItems.level')
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
@@ -105,33 +105,21 @@ class OrderController extends Controller
     {
         try {
             $order = Order::find($id);
+            if (!$order) return response()->json(['success' => false, 'message' => 'Order tidak ditemukan'], 404);
 
-            if (!$order) {
-                return response()->json(['success' => false, 'message' => 'Order tidak ditemukan'], 404);
+            if ($order->status == 'pending') {
+                $order->update(['status' => 'processing']);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Pembayaran sedang diproses! Pesanan akan segera dimasak.',
+                    'data' => $order
+                ]);
             }
 
-            // Ganti status jadi completed
-            if ($order->status != 'completed') {
-                $order->update(['status' => 'completed']);
-            }
-
-            // Kosongkan Meja
-            $table = Table::find($order->table_id);
-            if ($table) {
-                $table->update(['status' => 'available']);
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Pembayaran selesai! Meja sudah kosong.',
-                'data'    => $order
-            ]);
-
+            return response()->json(['success' => false, 'message' => 'Status order tidak valid untuk dibayar']);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false, 
-                'message' => 'Gagal Update: ' . $e->getMessage()
-            ], 500); 
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
@@ -143,7 +131,7 @@ class OrderController extends Controller
 
         if (!$deviceId) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Device ID wajib dikirim'
             ], 400);
         }
@@ -151,9 +139,9 @@ class OrderController extends Controller
         // Cari order berdasarkan device_id, urutkan dari yang terbaru
         // Kita load juga relasi orderItems dan menu biar datanya lengkap
         $orders = Order::where('device_id', $deviceId)
-                        ->with('orderItems.menu', 'orderItems.level') 
-                        ->orderBy('created_at', 'desc')
-                        ->get();
+            ->with('orderItems.menu', 'orderItems.level')
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -162,4 +150,28 @@ class OrderController extends Controller
         ]);
     }
 
+    public function updateStatus(Request $request, $id)
+    {
+        // 🎯 Tambahkan ini untuk cek di storage/logs/laravel.log
+        Log::info('Permintaan Update Status Masuk', [
+            'id_order' => $id,
+            'status_baru' => $request->status
+        ]);
+
+        $order = Order::find($id);
+        if (!$order) return response()->json(['message' => 'Not Found'], 404);
+
+        $newStatus = $request->status;
+
+        // Gunakan DB Table jika model 'table' bermasalah
+        if ($newStatus == 'cancelled') {
+            $order->update(['status' => 'cancelled']);
+            if ($order->table_id) {
+                DB::table('tables')->where('id', $order->table_id)->update(['status' => 'available']);
+            }
+            return response()->json(['success' => true]);
+        }
+
+        return response()->json(['success' => false]);
+    }
 }
