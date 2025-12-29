@@ -26,6 +26,13 @@
                     </div>
                 </div>
                 <div class="form-group row">
+                    <label class="col-2 control-label col-form-label">Deskripsi</label>
+                    <div class="col-10">
+                        <input type="text" class="form-control" name="description" value="{{ old('description') }}"
+                            required>
+                    </div>
+                </div>
+                <div class="form-group row">
                     <label class="col-2 control-label col-form-label">Harga</label>
                     <div class="col-10">
                         <input type="number" class="form-control" name="price" value="{{ old('price') }}" required>

@@ -30,6 +30,10 @@
                     <td>{{ $menu->category->name ?? '-' }}</td>
                 </tr>
                 <tr>
+                    <th>Deskripsi</th>
+                    <td>{{ $menu->description }}</td>
+                </tr>
+                <tr>
                     <th>Harga</th>
                     <td>Rp {{ number_format($menu->price, 0, ',', '.') }}</td>
                 </tr>

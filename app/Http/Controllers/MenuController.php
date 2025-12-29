@@ -40,7 +40,7 @@ class MenuController extends Controller
     {
         // Eager load relasi 'category' agar tidak terjadi N+1 problem
         // PASTIKAN kolom 'image' ditambahkan di select()
-        $menus = Menu::select('id', 'category_id', 'name', 'price', 'has_level', 'image')->with('category');
+        $menus = Menu::select('id', 'category_id', 'name','description', 'price', 'has_level', 'image')->with('category');
 
         // Filter berdasarkan category_id dari AJAX request (sesuai logika di index.blade.php)
         if ($request->category_id) {

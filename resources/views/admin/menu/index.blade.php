@@ -33,15 +33,17 @@
             <table class="table table-bordered table-striped table-hover table-sm" id="table_menu">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Foto</th>
-                        <th>Nama</th>
+                        <th>No</th>
+                        <th>Gambar</th>
+                        <th>Nama Menu</th>
                         <th>Kategori</th>
-                        <th>Harga</th>
-                        <th>Has Level</th>
+                        <th>Deskripsi</th>
+                        <th>Harga Dasar</th>
+                        <th>Perlu Level?</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
+
             </table>
         </div>
     </div>
@@ -80,6 +82,11 @@
                         data: "category_name",
                         orderable: false,
                         searchable: false
+                    },
+                    {
+                        data: "description", // Tambahkan baris ini
+                        orderable: false,
+                        searchable: true
                     },
                     {
                         data: "price",
