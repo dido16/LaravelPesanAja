@@ -1,0 +1,26 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up()
+{
+    Schema::table('orders', function (Blueprint $table) {
+        // Nambah kolom device_id, boleh null (biar data lama gak error)
+        $table->string('device_id')->nullable()->after('table_id'); 
+    });
+}
+
+public function down()
+{
+    Schema::table('orders', function (Blueprint $table) {
+        $table->dropColumn('device_id');
+    });
+  }
+};

@@ -1,0 +1,114 @@
+@extends('layout.template')
+
+@section('content')
+    <div class="card card-outline card-primary">
+        <div class="card-header">
+            <h3 class="card-title">{{ $page->title }}</h3>
+            <div class="card-tools">
+                <a class="btn btn-sm btn-primary mt-1" href="{{ url('admin/menus/create') }}">Tambah</a>
+            </div>
+        </div>
+        <div class="card-body">
+            @if (session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+            @if (session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="form-group row">
+                        <label class="col-1 control-label col-form-label">Filter:</label>
+                        <div class="col-3">
+                            <select class="form-control" id="category_id" name="category_id">
+                                <option value="">- Semua Kategori -</option>
+                                @foreach ($categories as $item)
+                                    <option value="{{ $item->id }}">{{ $item->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <table class="table table-bordered table-striped table-hover table-sm" id="table_menu">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Gambar</th>
+                        <th>Nama Menu</th>
+                        <th>Kategori</th>
+                        <th>Deskripsi</th>
+                        <th>Harga Dasar</th>
+                        <th>Perlu Level?</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+
+            </table>
+        </div>
+    </div>
+@endsection
+
+@push('js')
+    <script>
+        $(document).ready(function() {
+            var dataTable = $('#table_menu').DataTable({
+                serverSide: true,
+                ajax: {
+                    "url": "{{ url('admin/menus/list') }}",
+                    "dataType": "json",
+                    "type": "GET",
+                    "data": function(d) {
+                        d.category_id = $('#category_id').val();
+                    }
+                },
+                columns: [{
+                        data: "DT_RowIndex",
+                        className: "text-center",
+                        orderable: false,
+                        searchable: false
+                    },
+                    {
+                        data: "image",
+                        orderable: false,
+                        searchable: false
+                    },
+                    {
+                        data: "name",
+                        orderable: true,
+                        searchable: true
+                    },
+                    {
+                        data: "category_name",
+                        orderable: false,
+                        searchable: false
+                    },
+                    {
+                        data: "description", // Tambahkan baris ini
+                        orderable: false,
+                        searchable: true
+                    },
+                    {
+                        data: "price",
+                        orderable: true,
+                        searchable: true
+                    },
+                    {
+                        data: "has_level_text",
+                        orderable: false,
+                        searchable: false
+                    },
+                    {
+                        data: "aksi",
+                        orderable: false,
+                        searchable: false
+                    }
+                ]
+            });
+
+            $('#category_id').on('change', function() {
+                dataTable.draw();
+            });
+        });
+    </script>
+@endpush
